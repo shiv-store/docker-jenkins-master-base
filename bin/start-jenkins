@@ -1,0 +1,118 @@
+#!/bin/bash
+set -x # DEBUG
+set -e
+
+whoami
+
+if [ -a /etc/jenkins/jenkins.conf ]; then
+    # new location for conf; moved due to issues creating docker individual file volume for sharing
+    source /etc/jenkins/jenkins.conf
+elif [ -a /etc/jenkins.conf ]; then
+    # old location, keep around for backwards compatibility
+    source /etc/jenkins.conf
+fi
+
+SUDO=
+
+if [ -z "$JENKINS_USER" ]; then
+    echo "JENKINS_USER must be set. Don't run Jenkins as root.";
+    exit 1;
+fi
+
+JENKINS_WAR=/dist/jenkins/jenkins.war
+JENKINS_LOG=${JENKINS_LOG_DIR:=/var/log/jenkins}/jenkins.log
+JENKINS_HOME=${JENKINS_HOME_DIR:=/var/jenkins/home}
+
+JAVA=/dist/java/bin/java
+
+if [ ! -d $JENKINS_HOME ]; then
+    sudo mkdir -p $JENKINS_HOME
+fi
+if [ ! -d $JENKINS_HOME/plugins ]; then
+    sudo mkdir -p $JENKINS_HOME/plugins
+fi
+if [ -d $JENKINS_HOME/war ]; then
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/war
+fi
+if [ -d /dist/jenkins/plugins ]; then
+    sudo rm -rf $JENKINS_HOME/plugins/*
+    sudo cp /dist/jenkins/plugins/* $JENKINS_HOME/plugins/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/plugins
+fi
+if [ -d /dist/jenkins/jobs ]; then
+    if [ ! -d $JENKINS_HOME/jobs ]; then
+        sudo mkdir -p $JENKINS_HOME/jobs
+        sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/jobs
+    fi
+    sudo chown -R $JENKINS_USER:$JENKINS_USER /dist/jenkins/jobs
+    yes | sudo cp -Rp /dist/jenkins/jobs/* $JENKINS_HOME/jobs/   
+fi
+if [ -d /dist/jenkins/config ]; then
+    sudo rm -rf $JENKINS_HOME/*.xml
+    sudo cp /dist/jenkins/config/*.xml $JENKINS_HOME/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/*.xml
+fi
+if [ -d /dist/jenkins/config/nodes ]; then
+    if [ -d $JENKINS_HOME/nodes ]; then
+        sudo rm -rf  $JENKINS_HOME/nodes
+    fi
+    sudo mkdir $JENKINS_HOME/nodes
+    sudo cp -R /dist/jenkins/config/nodes $JENKINS_HOME/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/nodes  
+fi
+if [ -d /dist/jenkins/config/users ]; then
+    if [ -d $JENKINS_HOME/users ]; then
+        sudo rm -rf  $JENKINS_HOME/users
+    fi
+    sudo mkdir $JENKINS_HOME/users
+    sudo cp -R /dist/jenkins/config/users $JENKINS_HOME/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/users  
+fi
+if [ -d /dist/jenkins/config/secrets ]; then
+    if [ -d $JENKINS_HOME/secrets ]; then
+        sudo rm -rf  $JENKINS_HOME/secrets
+    fi
+    sudo mkdir $JENKINS_HOME/secrets
+    sudo cp -R /dist/jenkins/config/secrets $JENKINS_HOME/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/secrets  
+    sudo find $JENKINS_HOME/secrets/ -maxdepth 1 -type f | xargs sudo chmod 600
+fi
+if [ -f /dist/jenkins/config/secret.key ]; then
+    sudo cp -R /dist/jenkins/config/secret.key $JENKINS_HOME/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/secret.key
+    sudo chmod 600 $JENKINS_HOME/secret.key
+fi
+
+if [ -f ${JENKINS_HOME}/init.groovy.d ]; then
+    sudo rm -f ${JENKINS_HOME}/init.groovy.d
+fi
+if [ -d /dist/jenkins/config/init.groovy.d ]; then
+    if [ -d $JENKINS_HOME/init.groovy.d ]; then
+        sudo rm -rf  $JENKINS_HOME/init.groovy.d
+    fi
+    sudo mkdir $JENKINS_HOME/init.groovy.d
+    sudo cp -R /dist/jenkins/config/init.groovy.d $JENKINS_HOME/
+    sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/init.groovy.d
+fi
+
+if grep -q $JENKINS_USER $JENKINS_HOME/.jenkins-user; then
+    echo "$JENKINS_HOME contents already owned by $JENKINS_USER, skipping chown"
+    sudo chown $JENKINS_USER:$JENKINS_USER $JENKINS_HOME
+else
+    sudo chown $JENKINS_USER:$JENKINS_USER $JENKINS_HOME
+    echo $JENKINS_USER > $JENKINS_HOME/.jenkins-user
+fi
+
+if [ ! -d $JENKINS_LOG_DIR ]; then
+    sudo mkdir $JENKINS_LOG_DIR
+fi
+
+sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_LOG_DIR
+
+if [ -e $JENKINS_LOG ]; then 
+    sudo mv $JENKINS_LOG $JENKINS_LOG.`date +%Y%m%d%H%M`
+fi
+
+cd $JENKINS_HOME
+
+exec $JAVA $JAVA_OPTS -DJENKINS_HOME=$JENKINS_HOME -Djenkins.security.ClassFilterImpl.SUPPRESS_WHITELIST=true -Dhudson.model.Api.INSECURE=true -Dhudson.model.DirectoryBrowserSupport.CSP="sandbox allow-scripts; style-src 'unsafe-inline' *;" -Dhudson.model.ParametersAction.keepUndefinedParameters=true -jar $JENKINS_WAR --httpPort=8080
