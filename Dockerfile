@@ -43,8 +43,9 @@ ONBUILD RUN adduser ${JENKINS_USER} -u ${JENKINS_UID} && \
 
 ONBUILD ENV JENKINS_USER ${JENKINS_USER}
 ONBUILD USER ${JENKINS_USER}
-ONBUILD CMD ["/usr/bin/tini","--","/usr/local/bin/start-jenkins"]
 ENV PATH $JAVA_HOME/bin:$PATH
 ENV JAVA_HOME=/usr/bin/java
 ENV PATH $JAVA_HOME/bin:$PATH
+ONBUILD CMD ["/usr/bin/tini","--","/usr/local/bin/start-jenkins"]
+
 

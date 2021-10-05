@@ -23,7 +23,7 @@ JENKINS_WAR=/dist/jenkins/jenkins.war
 JENKINS_LOG=${JENKINS_LOG_DIR:=/var/log/jenkins}/jenkins.log
 JENKINS_HOME=${JENKINS_HOME_DIR:=/var/jenkins/home}
 
-JAVA=/dist/java/bin/java
+JAVA=/usr/bin/java
 
 if [ ! -d $JENKINS_HOME ]; then
     sudo mkdir -p $JENKINS_HOME
@@ -45,7 +45,7 @@ if [ -d /dist/jenkins/jobs ]; then
         sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/jobs
     fi
     sudo chown -R $JENKINS_USER:$JENKINS_USER /dist/jenkins/jobs
-    yes | sudo cp -Rp /dist/jenkins/jobs/* $JENKINS_HOME/jobs/   
+    yes | sudo cp -R /dist/jenkins/jobs/* $JENKINS_HOME/jobs/   
 fi
 if [ -d /dist/jenkins/config ]; then
     sudo rm -rf $JENKINS_HOME/*.xml
@@ -95,6 +95,13 @@ if [ -d /dist/jenkins/config/init.groovy.d ]; then
     sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_HOME/init.groovy.d
 fi
 
+sudo mkdir -p ~/.ssh
+sudo cp -R /dist/jenkins/config/ssh/* ~/.ssh
+sudo chown -R $JENKINS_USER:$JENKINS_USER ~/.ssh
+sudo chmod 700 ~/.ssh
+sudo chmod 600 ~/.ssh/*
+sudo chmod 644 ~/.ssh/*.pub
+
 if grep -q $JENKINS_USER $JENKINS_HOME/.jenkins-user; then
     echo "$JENKINS_HOME contents already owned by $JENKINS_USER, skipping chown"
     sudo chown $JENKINS_USER:$JENKINS_USER $JENKINS_HOME
@@ -112,6 +119,8 @@ sudo chown -R $JENKINS_USER:$JENKINS_USER $JENKINS_LOG_DIR
 if [ -e $JENKINS_LOG ]; then 
     sudo mv $JENKINS_LOG $JENKINS_LOG.`date +%Y%m%d%H%M`
 fi
+
+sudo chown $JENKINS_USER:$JENKINS_USER -R $JENKINS_HOME
 
 cd $JENKINS_HOME
 
